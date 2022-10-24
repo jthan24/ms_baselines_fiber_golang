@@ -1,0 +1,48 @@
+extensions:
+  health_check:
+  pprof:
+    endpoint: 0.0.0.0:1777
+  # Configure the Remote sampling configuration
+  awsproxy:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+
+exporters:
+  logging:
+    loglevel: debug
+  awsxray:
+    region: "us-east-1"
+  awsemf:
+    region: "us-east-1"
+    log_group_name: "AOTLogGroup"
+    log_stream_name: "AOTLogStream"
+    namespace: "AOTMetricNS"
+    dimension_rollup_option: 1
+
+service:
+  pipelines:
+    traces:
+      receivers:
+        - otlp
+
+      exporters:
+        - awsxray
+    metrics:
+      receivers:
+        - otlp
+      exporters:
+        - awsemf
+
+  extensions:
+    - pprof
+    - awsproxy
+  telemetry:
+    logs:
+      level: debug

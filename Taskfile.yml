@@ -1,0 +1,39 @@
+version: "3"
+
+vars:
+  EXE: fiber-baseline{{exeExt}}
+
+tasks:
+  default:
+    cmds:
+      - task: go:dev
+
+  go:docs:
+    desc: Generate the swagger docs
+    cmds:
+      - swag init -o app/_docs
+    sources:
+      - ./handlers.go
+    generates:
+      - ./app/_docs/*
+
+  go:dev:
+    desc: Start the local environment
+    deps: [go:docs, docker:dev]
+    cmds:
+      - godotenv -f .env go run .
+
+  docker:dev:
+    desc: Start the local environment
+    cmds:
+      - docker compose up -d
+
+  go:build:
+    desc: Build the web app
+    deps: [go:docs]
+    cmds:
+      - CGO_ENABLED=0 go build -o {{.EXE}} .
+    sources:
+      - ./**/*.go
+    generates:
+      - ./{{.EXE}}
