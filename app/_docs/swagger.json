@@ -17,7 +17,7 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/mysql.User"
+                                "$ref": "#/definitions/db.User"
                             }
                         }
                     }
@@ -42,7 +42,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mysql.User"
+                            "$ref": "#/definitions/db.User"
                         }
                     }
                 }
@@ -68,7 +68,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mysql.User"
+                            "$ref": "#/definitions/db.User"
                         }
                     }
                 }
@@ -99,7 +99,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mysql.User"
+                            "$ref": "#/definitions/db.User"
                         }
                     }
                 }
@@ -131,7 +131,7 @@
         }
     },
     "definitions": {
-        "mysql.User": {
+        "db.User": {
             "type": "object",
             "properties": {
                 "id": {

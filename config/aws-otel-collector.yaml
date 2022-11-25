@@ -2,7 +2,6 @@ extensions:
   health_check:
   pprof:
     endpoint: 0.0.0.0:1777
-  # Configure the Remote sampling configuration
   awsproxy:
 
 receivers:
@@ -21,10 +20,13 @@ exporters:
     region: "us-east-1"
   awsemf:
     region: "us-east-1"
-    log_group_name: "AOTLogGroup"
-    log_stream_name: "AOTLogStream"
-    namespace: "AOTMetricNS"
+    # log_group_name: "MSBaselines"
+    # log_stream_name: "MSBaselines"
+    namespace: "MSBaselines"
     dimension_rollup_option: 1
+    # Convert attributes to metric labels
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   pipelines:

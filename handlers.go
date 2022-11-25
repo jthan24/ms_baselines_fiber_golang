@@ -1,30 +1,51 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"net/http"
-	"strconv"
-	"time"
-
-	"prom/app/mysql"
+	"prom/app/config"
+	"prom/app/db"
+	"prom/core/domain/repository"
+	"prom/core/usecases"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
+	"go.opentelemetry.io/otel"
+	"go.uber.org/zap"
 )
+
+var tracer = otel.Tracer(config.GetConfig().ServiceName)
+var once sync.Once
+var logger *otelzap.Logger
+
+func Logger(ctx context.Context) otelzap.LoggerWithCtx {
+	once.Do(func() {
+		l, err := zap.NewDevelopment()
+		if err != nil {
+			panic(err)
+		}
+		logger = otelzap.New(l)
+	})
+	return logger.Ctx(ctx)
+}
 
 // List Users
 // @Summary List Users Service
 // @Id list_users
 // @version 1.0
 // @produce application/json
-// @Success 200 {object} []mysql.User
+// @Success 200 {object} []db.User
 // @Router /v1/user [get]
 // List Users Handler
-func ListUsers(c *fiber.Ctx) error {
-	time.Sleep(time.Second)
-	userList := make([]*mysql.User, 0)
-	res := userRepo.Db.Find(&userList)
+func ListUsers(c *fiber.Ctx, repo repository.Connection) error {
+	ctx, span := tracer.Start(c.UserContext(), "listUserHandler")
+	userList, err := usecases.ListUsers(repo, ctx)
+	defer span.End()
 
-	if res.Error != nil {
-		return c.Status(http.StatusInternalServerError).JSON(res.Error)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
 
 	return c.Status(http.StatusOK).JSON(userList)
@@ -36,17 +57,25 @@ func ListUsers(c *fiber.Ctx) error {
 // @version 1.0
 // @produce application/json
 // @Param id path int true "id"
-// @Success 200 {object} mysql.User
+// @Success 200 {object} db.User
 // @Router /v1/user/{id} [get]
 // Get User Handler
-func GetUser(c *fiber.Ctx) error {
+func GetUser(c *fiber.Ctx, repo repository.Connection) error {
+	uid, err := c.ParamsInt("id")
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(err)
+	}
 
-	uid := c.Params("id")
-	user := &mysql.User{}
-	res := userRepo.Db.Where("id = ?", uid).Find(user)
+	ctx := c.UserContext()
+	user, err := usecases.GetUser(repo, ctx, uid)
 
-	if res.Error != nil {
-		return c.Status(http.StatusInternalServerError).JSON(res.Error)
+	if err != nil {
+		switch {
+		case errors.Is(err, usecases.UserNotFoundError):
+			return c.Status(http.StatusNotFound).JSON(err)
+		default:
+			return c.Status(http.StatusInternalServerError).JSON(err)
+		}
 	}
 	return c.Status(http.StatusOK).JSON(user)
 }
@@ -56,21 +85,21 @@ func GetUser(c *fiber.Ctx) error {
 // @Id create_user
 // @version 1.0
 // @produce application/json
-// @Success 200 {object} mysql.User
+// @Success 200 {object} db.User
 // @Param name query string true "name"
 // @Router /v1/user [put]
 // Create User Handler
-func CreateUser(c *fiber.Ctx) error {
-	user := &mysql.User{
+func CreateUser(c *fiber.Ctx, repo repository.Connection) error {
+	user := &db.User{
 		Name: c.Query("name"),
 	}
+	ctx := c.UserContext()
+	userResult, err := usecases.CreateUser(repo, ctx, user)
 
-	res := userRepo.Db.Create(user)
-
-	if res.Error != nil {
-		return c.Status(http.StatusInternalServerError).JSON(res.Error)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
-	return c.Status(http.StatusOK).JSON(user)
+	return c.Status(http.StatusOK).JSON(userResult)
 }
 
 // Update User
@@ -78,27 +107,34 @@ func CreateUser(c *fiber.Ctx) error {
 // @Id update_user
 // @version 1.0
 // @produce application/json
-// @Success 200 {object} mysql.User
+// @Success 200 {object} db.User
 // @Param id path string true "id"
 // @Param name query string true "name"
 // @Router /v1/user/{id} [post]
 // Update User Handler
-func UpdateUser(c *fiber.Ctx) error {
-	uid := c.Params("id")
-	user := &mysql.User{
+func UpdateUser(c *fiber.Ctx, repo repository.Connection) error {
+	ctx := c.UserContext()
+	uid, err := c.ParamsInt("id")
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(err)
+	}
+
+	user := &db.User{
 		Name: c.Query("name"),
+		Id:   uid,
 	}
 
-	res := userRepo.Db.Where("id =string ?", uid).Updates(user)
-
-	if res.Error != nil {
-		return c.Status(http.StatusInternalServerError).JSON(res.Error)
+	userResult, err := usecases.UpdateUser(repo, ctx, user)
+	if err != nil {
+		switch {
+		case errors.Is(err, usecases.UserNotFoundError):
+			return c.Status(http.StatusNotFound).JSON(err)
+		default:
+			return c.Status(http.StatusInternalServerError).JSON(err)
+		}
 	}
 
-	// get user
-	userRepo.Db.Where("id = ?", uid).Find(user)
-
-	return c.Status(http.StatusOK).JSON(user)
+	return c.Status(http.StatusOK).JSON(userResult)
 }
 
 // Delete User
@@ -110,14 +146,16 @@ func UpdateUser(c *fiber.Ctx) error {
 // @Param id path string true "id"
 // @Router /v1/user/{id} [delete]
 // Delete User Handler
-func DeleteUser(c *fiber.Ctx) error {
-	uid, _ := strconv.Atoi(c.Params("id"))
-	res := userRepo.Db.Delete(&mysql.User{
-		Id: uid,
-	})
+func DeleteUser(c *fiber.Ctx, repo repository.Connection) error {
+	uid, err := c.ParamsInt("id")
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(err)
+	}
+	ctx := c.UserContext()
 
-	if res.Error != nil {
-		return c.Status(http.StatusInternalServerError).JSON(res.Error)
+	err = usecases.DeleteUser(repo, ctx, uid)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
 	return c.Status(http.StatusOK).SendString("success")
 }

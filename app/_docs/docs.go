@@ -29,7 +29,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/mysql.User"
+                                "$ref": "#/definitions/db.User"
                             }
                         }
                     }
@@ -54,7 +54,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mysql.User"
+                            "$ref": "#/definitions/db.User"
                         }
                     }
                 }
@@ -80,7 +80,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mysql.User"
+                            "$ref": "#/definitions/db.User"
                         }
                     }
                 }
@@ -111,7 +111,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/mysql.User"
+                            "$ref": "#/definitions/db.User"
                         }
                     }
                 }
@@ -143,7 +143,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "mysql.User": {
+        "db.User": {
             "type": "object",
             "properties": {
                 "id": {

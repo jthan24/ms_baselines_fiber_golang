@@ -1,5 +1,5 @@
 definitions:
-  mysql.User:
+  db.User:
     properties:
       id:
         type: integer
@@ -19,7 +19,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/mysql.User'
+              $ref: '#/definitions/db.User'
             type: array
       summary: List Users Service
     put:
@@ -36,7 +36,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/mysql.User'
+            $ref: '#/definitions/db.User'
       summary: Creates a User
   /v1/user/{id}:
     delete:
@@ -69,7 +69,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/mysql.User'
+            $ref: '#/definitions/db.User'
       summary: Get User Service
     post:
       operationId: update_user
@@ -90,6 +90,6 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/mysql.User'
+            $ref: '#/definitions/db.User'
       summary: Update a User
 swagger: "2.0"
