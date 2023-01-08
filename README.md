@@ -1,5 +1,11 @@
-## TODO
+# MS Baselines Golang
 
+## Start
+- task docker:dev
+- task docker:start
+-  go to localhost:3000
+
+## TODO
 - Dependency injection https://github.com/google/wire
 - Logger
 - hot reload

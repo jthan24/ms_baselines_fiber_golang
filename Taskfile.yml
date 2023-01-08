@@ -8,14 +8,18 @@ tasks:
     cmds:
       - task: go:dev
 
+  go:mod:download:
+    cmds:
+      - go mod download
+
   go:docs:
     desc: Generate the swagger docs
     cmds:
-      - swag init -o app/_docs
+      - swag init -o app/fbr/_docs
     sources:
-      - ./handlers.go
+      - ./app/fbr/handlers.go
     generates:
-      - ./app/_docs/*
+      - ./app/fbr/_docs/*
 
   go:dev:
     desc: Start the local environment
@@ -27,6 +31,17 @@ tasks:
     desc: Start the local environment
     cmds:
       - docker compose up -d
+
+  docker:start:
+    desc: Start the app as a container
+    deps: [docker:build]
+    cmds:
+      - docker run -it --rm --env-file .docker.env -v ~/.aws:/nobody/.aws --network ms-baselines-golang  -p 3000:3000 ms-baselines-golang:latest
+
+  docker:build:
+    desc: Build docker image
+    cmds:
+      - docker build -t ms-baselines-golang:latest .
 
   go:build:
     desc: Build the web app

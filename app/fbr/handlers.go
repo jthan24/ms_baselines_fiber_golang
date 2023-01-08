@@ -1,35 +1,15 @@
-package main
+package fbr
 
 import (
-	"context"
 	"errors"
 	"net/http"
-	"prom/app/config"
 	"prom/app/db"
+	"prom/app/otel"
 	"prom/core/domain/repository"
 	"prom/core/usecases"
-	"sync"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
-	"go.opentelemetry.io/otel"
-	"go.uber.org/zap"
 )
-
-var tracer = otel.Tracer(config.GetConfig().ServiceName)
-var once sync.Once
-var logger *otelzap.Logger
-
-func Logger(ctx context.Context) otelzap.LoggerWithCtx {
-	once.Do(func() {
-		l, err := zap.NewDevelopment()
-		if err != nil {
-			panic(err)
-		}
-		logger = otelzap.New(l)
-	})
-	return logger.Ctx(ctx)
-}
 
 // List Users
 // @Summary List Users Service
@@ -40,7 +20,7 @@ func Logger(ctx context.Context) otelzap.LoggerWithCtx {
 // @Router /v1/user [get]
 // List Users Handler
 func ListUsers(c *fiber.Ctx, repo repository.Connection) error {
-	ctx, span := tracer.Start(c.UserContext(), "listUserHandler")
+	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "listUsersHandler")
 	userList, err := usecases.ListUsers(repo, ctx)
 	defer span.End()
 
@@ -66,7 +46,8 @@ func GetUser(c *fiber.Ctx, repo repository.Connection) error {
 		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
 
-	ctx := c.UserContext()
+	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "GetUserHandler")
+	defer span.End()
 	user, err := usecases.GetUser(repo, ctx, uid)
 
 	if err != nil {
@@ -93,7 +74,8 @@ func CreateUser(c *fiber.Ctx, repo repository.Connection) error {
 	user := &db.User{
 		Name: c.Query("name"),
 	}
-	ctx := c.UserContext()
+	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "CreateUserHandler")
+	defer span.End()
 	userResult, err := usecases.CreateUser(repo, ctx, user)
 
 	if err != nil {
@@ -113,7 +95,6 @@ func CreateUser(c *fiber.Ctx, repo repository.Connection) error {
 // @Router /v1/user/{id} [post]
 // Update User Handler
 func UpdateUser(c *fiber.Ctx, repo repository.Connection) error {
-	ctx := c.UserContext()
 	uid, err := c.ParamsInt("id")
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(err)
@@ -124,6 +105,8 @@ func UpdateUser(c *fiber.Ctx, repo repository.Connection) error {
 		Id:   uid,
 	}
 
+	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "UpdateUserHandler")
+	defer span.End()
 	userResult, err := usecases.UpdateUser(repo, ctx, user)
 	if err != nil {
 		switch {
@@ -151,7 +134,8 @@ func DeleteUser(c *fiber.Ctx, repo repository.Connection) error {
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
-	ctx := c.UserContext()
+	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "DeleteUserHandler")
+	defer span.End()
 
 	err = usecases.DeleteUser(repo, ctx, uid)
 	if err != nil {

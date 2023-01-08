@@ -1,8 +1,9 @@
-package main
+package otel
 
 import (
 	"context"
 	"fmt"
+	"prom/app/config"
 
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/propagators/aws/xray"
@@ -20,7 +21,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func initTracer(ctx context.Context) func(context.Context) error {
+var conf = config.GetConfig()
+
+func InitTracer(ctx context.Context) func(context.Context) error {
 	conn, err := grpc.DialContext(
 		ctx,
 		conf.OTELCollectorURL,
@@ -72,7 +75,7 @@ func initTracer(ctx context.Context) func(context.Context) error {
 	}
 }
 
-func initMetricsProvider(ctx context.Context) func(context.Context) error {
+func InitMetricsProvider(ctx context.Context) func(context.Context) error {
 	exp, err := otlpmetricgrpc.New(ctx,
 		otlpmetricgrpc.WithInsecure(),
 		otlpmetricgrpc.WithEndpoint(conf.OTELCollectorURL),

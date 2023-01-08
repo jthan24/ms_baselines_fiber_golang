@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -7,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/bitly/go-simplejson"
 	"github.com/gorilla/mux"
@@ -17,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -25,7 +22,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-var tracer = otel.Tracer("sample-app")
+var tracer = otel.Tracer("client-app")
 
 func main() {
 	initProvider()
@@ -41,31 +38,6 @@ func main() {
 		attribute.String("labelC", "vanilla"),
 	}
 
-	r.HandleFunc("/aws-sdk-call", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Set("Content-Type", "application/json")
-		ctx := r.Context()
-
-		propgator := propagation.NewCompositeTextMapPropagator(
-			// propagation.TraceContext{},
-			// propagation.Baggage{},
-			xray.Propagator{},
-		)
-
-		carrier := propagation.MapCarrier{}
-		propgator.Inject(ctx, carrier)
-		// This carrier is sent accros the process
-		fmt.Println(carrier)
-
-		xrayTraceID := getXrayTraceID(trace.SpanFromContext(ctx))
-		json := simplejson.New()
-		json.Set("traceId", xrayTraceID)
-		payload, _ := json.MarshalJSON()
-
-		_, _ = w.Write(payload)
-
-	}))
-
 	r.HandleFunc(
 		"/outgoing-http-call",
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +49,12 @@ func main() {
 
 			xrayTraceID, _ := func(ctx context.Context) (string, error) {
 
-        req, _ := http.NewRequestWithContext(ctx, "GET", "http://localhost:3000/v1/user", nil)
+				req, _ := http.NewRequestWithContext(
+					ctx,
+					"GET",
+					"http://localhost:3000/v1/user",
+					nil,
+				)
 
 				res, err := client.Do(req)
 				if err != nil {
@@ -108,23 +85,14 @@ func main() {
 
 	http.Handle("/", r)
 
+  fmt.Println("Starting test client, curl localhost:8080/outgoing-http-call")
 	// Start server
-	address := os.Getenv("LISTEN_ADDRESS")
-	if len(address) > 0 {
-		_ = http.ListenAndServe(fmt.Sprintf("%s", address), nil)
-	} else {
-		// Default port 8080
-		_ = http.ListenAndServe("localhost:8080", nil)
-	}
+	_ = http.ListenAndServe("localhost:8080", nil)
 }
 
 func initProvider() {
 	ctx := context.Background()
-
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if endpoint == "" {
-		endpoint = "0.0.0.0:4317" // setting default endpoint for exporter
-	}
+	endpoint := "0.0.0.0:4317" // setting default endpoint for exporter
 
 	// Create and start new OTLP trace exporter
 	traceExporter, err := otlptracegrpc.New(
@@ -137,15 +105,10 @@ func initProvider() {
 
 	idg := xray.NewIDGenerator()
 
-	service := os.Getenv("GO_GORILLA_SERVICE_NAME")
-	if service == "" {
-		service = "go-gorilla"
-	}
-
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		// the service name used to display traces in backends
-		semconv.ServiceNameKey.String("test-service"),
+		semconv.ServiceNameKey.String("test-client"),
 	)
 	handleErr(err, "failed to create resource")
 

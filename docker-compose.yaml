@@ -38,3 +38,7 @@ services:
       - "2000:2000" # remote sampler
 volumes:
   my-db:
+
+networks:
+  default:
+    name: ms-baselines-golang
