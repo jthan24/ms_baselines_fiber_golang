@@ -4,7 +4,11 @@ definitions:
       id:
         type: integer
       name:
+        maxLength: 50
+        minLength: 10
         type: string
+    required:
+    - name
     type: object
 info:
   contact: {}
@@ -22,7 +26,7 @@ paths:
               $ref: '#/definitions/db.User'
             type: array
       summary: List Users Service
-    put:
+    post:
       operationId: create_user
       parameters:
       - description: name
@@ -71,7 +75,7 @@ paths:
           schema:
             $ref: '#/definitions/db.User'
       summary: Get User Service
-    post:
+    put:
       operationId: update_user
       parameters:
       - description: id

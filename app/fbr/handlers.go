@@ -2,13 +2,16 @@ package fbr
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"prom/app/db"
 	"prom/app/otel"
+	"prom/core/domain/logger"
 	"prom/core/domain/repository"
 	"prom/core/usecases"
 
 	"github.com/gofiber/fiber/v2"
+	"go.uber.org/zap"
 )
 
 // List Users
@@ -19,14 +22,17 @@ import (
 // @Success 200 {object} []db.User
 // @Router /v1/user [get]
 // List Users Handler
-func ListUsers(c *fiber.Ctx, repo repository.Connection) error {
+func ListUsers(c *fiber.Ctx, repo repository.Connection, log logger.Logger) error {
 	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "listUsersHandler")
 	userList, err := usecases.ListUsers(repo, ctx)
 	defer span.End()
 
 	if err != nil {
+		log.Error(ctx, "Error Listing users")
 		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
+
+	log.Info(ctx, "Listed Users")
 
 	return c.Status(http.StatusOK).JSON(userList)
 }
@@ -40,10 +46,21 @@ func ListUsers(c *fiber.Ctx, repo repository.Connection) error {
 // @Success 200 {object} db.User
 // @Router /v1/user/{id} [get]
 // Get User Handler
-func GetUser(c *fiber.Ctx, repo repository.Connection) error {
+func GetUser(c *fiber.Ctx, repo repository.Connection, log logger.Logger) error {
 	uid, err := c.ParamsInt("id")
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(err)
+	}
+
+	var inputErrs []*ErrorResponse
+
+	if uid < 1 {
+		inputErrs = append(inputErrs, &ErrorResponse{
+			FailedField: "id",
+			Tag:         "The id must be grater than 1",
+			Value:       fmt.Sprint(uid),
+		})
+		return c.Status(http.StatusBadRequest).JSON(inputErrs)
 	}
 
 	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "GetUserHandler")
@@ -55,9 +72,12 @@ func GetUser(c *fiber.Ctx, repo repository.Connection) error {
 		case errors.Is(err, usecases.UserNotFoundError):
 			return c.Status(http.StatusNotFound).JSON(err)
 		default:
+			log.Error(ctx, "Error Getting user with id", zap.Int("uid", uid))
 			return c.Status(http.StatusInternalServerError).JSON(err)
 		}
 	}
+
+	log.Info(ctx, "Got User with id", zap.Int("uid", uid))
 	return c.Status(http.StatusOK).JSON(user)
 }
 
@@ -68,19 +88,28 @@ func GetUser(c *fiber.Ctx, repo repository.Connection) error {
 // @produce application/json
 // @Success 200 {object} db.User
 // @Param name query string true "name"
-// @Router /v1/user [put]
+// @Router /v1/user [post]
 // Create User Handler
-func CreateUser(c *fiber.Ctx, repo repository.Connection) error {
+func CreateUser(c *fiber.Ctx, repo repository.Connection, log logger.Logger) error {
+	name := c.Query("name")
 	user := &db.User{
-		Name: c.Query("name"),
+		Name: name,
+	}
+
+	errors := ValidateStruct(*user)
+	if errors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(errors)
 	}
 	ctx, span := otel.GetTracerInstance().Start(c.UserContext(), "CreateUserHandler")
 	defer span.End()
 	userResult, err := usecases.CreateUser(repo, ctx, user)
 
 	if err != nil {
+		log.Error(ctx, "Error creating user with id", zap.String("user-name", name))
 		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
+
+	log.Info(ctx, "Created user with name", zap.String("user-name", name))
 	return c.Status(http.StatusOK).JSON(userResult)
 }
 
@@ -92,9 +121,9 @@ func CreateUser(c *fiber.Ctx, repo repository.Connection) error {
 // @Success 200 {object} db.User
 // @Param id path string true "id"
 // @Param name query string true "name"
-// @Router /v1/user/{id} [post]
+// @Router /v1/user/{id} [put]
 // Update User Handler
-func UpdateUser(c *fiber.Ctx, repo repository.Connection) error {
+func UpdateUser(c *fiber.Ctx, repo repository.Connection, log logger.Logger) error {
 	uid, err := c.ParamsInt("id")
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(err)
@@ -113,9 +142,12 @@ func UpdateUser(c *fiber.Ctx, repo repository.Connection) error {
 		case errors.Is(err, usecases.UserNotFoundError):
 			return c.Status(http.StatusNotFound).JSON(err)
 		default:
+		  log.Error(ctx, "Error updating user with id", zap.Int("uid", uid))
 			return c.Status(http.StatusInternalServerError).JSON(err)
 		}
 	}
+
+	log.Info(ctx, "Updated user with id", zap.Int("uid", uid))
 
 	return c.Status(http.StatusOK).JSON(userResult)
 }
@@ -129,7 +161,7 @@ func UpdateUser(c *fiber.Ctx, repo repository.Connection) error {
 // @Param id path string true "id"
 // @Router /v1/user/{id} [delete]
 // Delete User Handler
-func DeleteUser(c *fiber.Ctx, repo repository.Connection) error {
+func DeleteUser(c *fiber.Ctx, repo repository.Connection, log logger.Logger) error {
 	uid, err := c.ParamsInt("id")
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(err)
@@ -139,7 +171,10 @@ func DeleteUser(c *fiber.Ctx, repo repository.Connection) error {
 
 	err = usecases.DeleteUser(repo, ctx, uid)
 	if err != nil {
+	  log.Error(ctx, "Error deleting user with id", zap.Int("uid", uid))
 		return c.Status(http.StatusInternalServerError).JSON(err)
 	}
+
+	log.Info(ctx, "Deleted user with id", zap.Int("uid", uid))
 	return c.Status(http.StatusOK).SendString("success")
 }

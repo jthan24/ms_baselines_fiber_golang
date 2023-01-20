@@ -13,47 +13,45 @@ import (
 	"syscall"
 	"time"
 
+	"prom/core/domain/logger"
+
 	"github.com/gofiber/contrib/otelfiber"
 	"github.com/gofiber/fiber/v2"
-	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.opentelemetry.io/contrib/propagators/aws/xray"
-	"go.uber.org/zap"
 )
 
-type providerCancelFunc = func(context.Context) error
+type ProviderCancelFunc = func(context.Context) error
+
+type OtelProviderImpl struct {
+	TracerProvider  func(context.Context) ProviderCancelFunc
+	MetricsProvider func(context.Context) ProviderCancelFunc
+}
 
 type Application struct {
+	Logger          logger.Logger
 	HttpAdapter     *fiber.App
 	UserRepo        repository.Connection
-	TracerProvider  func(context.Context) providerCancelFunc
-	MetricsProvider func(context.Context) providerCancelFunc
+  OtelProvider    *OtelProviderImpl
 	// TODO cleaner shutdown func
-	tracerProviderShutdownFunc  providerCancelFunc
-	metricsProviderShutdownFunc providerCancelFunc
+	tracerProviderShutdownFunc  ProviderCancelFunc
+	metricsProviderShutdownFunc ProviderCancelFunc
 }
 
 var conf = config.GetConfig()
 
 func (a *Application) Start() {
-	logger := otelzap.New(zap.NewExample())
-	defer logger.Sync()
-
-	// TODO avoid global zap loggers an pass them via dependency injection
-	undo := otelzap.ReplaceGlobals(logger)
-	defer undo()
-
-	a.tracerProviderShutdownFunc = a.TracerProvider(context.Background())
-	a.metricsProviderShutdownFunc = a.MetricsProvider(context.Background())
+	a.tracerProviderShutdownFunc = a.OtelProvider.TracerProvider(context.Background())
+	a.metricsProviderShutdownFunc = a.OtelProvider.MetricsProvider(context.Background())
 	a.HttpAdapter.Use(otelfiber.Middleware(conf.ServiceName,
 		otelfiber.WithPropagators(xray.Propagator{}),
 	))
-	fbr.InitHttpAdapter(a.HttpAdapter, a.UserRepo)
+	fbr.InitHttpAdapter(a.HttpAdapter, a.UserRepo, a.Logger)
 }
 
 func shutdownHelper(
 	ctx context.Context,
 	timeout time.Duration,
-	ops map[string]providerCancelFunc,
+	ops map[string]ProviderCancelFunc,
 ) <-chan struct{} {
 	wait := make(chan struct{})
 	go func() {
@@ -78,7 +76,7 @@ func shutdownHelper(
 		wg.Add(len(ops))
 
 		for key, op := range ops {
-			go func(key string, op providerCancelFunc) {
+			go func(key string, op ProviderCancelFunc) {
 				defer wg.Done()
 				log.Printf("Cleaning up: %s", key)
 				if err := op(ctx); err != nil {
@@ -99,7 +97,7 @@ func shutdownHelper(
 }
 
 func (a *Application) Shutdown() {
-	wait := shutdownHelper(context.Background(), 2*time.Second, map[string]providerCancelFunc{
+	wait := shutdownHelper(context.Background(), 2*time.Second, map[string]ProviderCancelFunc{
 		"httpAdapter": func(ctx context.Context) error {
 			return a.HttpAdapter.Shutdown()
 		},

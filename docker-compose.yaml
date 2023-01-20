@@ -26,7 +26,7 @@ services:
     command: ["--config=/etc/otel-agent-config.yaml"]
     environment:
       - AWS_REGION=us-east-1
-      - AWS_PROFILE=personal:admin
+      - AWS_PROFILE=${AWS_PROFILE}
     volumes:
       - ./config/aws-otel-collector.yaml:/etc/otel-agent-config.yaml
       - ~/.aws:/root/.aws

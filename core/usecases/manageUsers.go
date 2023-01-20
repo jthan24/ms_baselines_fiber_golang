@@ -22,7 +22,9 @@ func ListUsers(conn repository.Connection, parentCtx context.Context) ([]*db.Use
 	tx := conn.WithContext(ctx).Find(&userList)
 
 	if tx.Error != nil {
-		return nil, fmt.Errorf("Cannot get users in listUsersUC: %w", tx.Error)
+    err := fmt.Errorf("Cannot get users in listUsersUC: %w", tx.Error)
+    span.RecordError(err)
+		return nil, err
 	}
 
 	return userList, nil
@@ -35,12 +37,14 @@ func GetUser(conn repository.Connection, parentCtx context.Context, uid int) (*d
 	user := &db.User{}
 	tx := conn.WithContext(ctx).Where("id = ?", uid).Find(user)
 
-  if tx.RowsAffected == 0 {
-    return nil, UserNotFoundError
-  }
+	if tx.RowsAffected == 0 {
+		return nil, UserNotFoundError
+	}
 
 	if tx.Error != nil {
-		return nil, fmt.Errorf("Cannot get user with id %d in getUsersUC: %w", uid, tx.Error)
+    err := fmt.Errorf("Cannot get user with id %d in getUsersUC: %w", uid, tx.Error)
+    span.RecordError(err)
+		return nil, err
 	}
 	return user, nil
 }
@@ -56,7 +60,9 @@ func CreateUser(
 	tx := conn.WithContext(ctx).Create(user)
 
 	if tx.Error != nil {
-		return nil, fmt.Errorf("Cannot create user in createUsersUC: %w", tx.Error)
+    err := fmt.Errorf("Cannot create user in createUsersUC: %w", tx.Error)
+		span.RecordError(err)
+		return nil, err
 	}
 	return user, nil
 }
@@ -71,17 +77,19 @@ func UpdateUser(
 
 	tx := conn.WithContext(ctx).Where("id = ?", user.Id).Updates(user)
 
-  // Good enough if an extra read is not acceptable
-  if tx.RowsAffected == 0 {
-    return nil, UserNotFoundError
-  }
+	// Good enough if an extra read is not acceptable
+	if tx.RowsAffected == 0 {
+		return nil, UserNotFoundError
+	}
 
 	if tx.Error != nil {
 		switch {
 		case errors.Is(tx.Error, gorm.ErrRecordNotFound):
 			return nil, UserNotFoundError
 		default:
-			return nil, fmt.Errorf("Cannot create user in updateUsersUC: %w", tx.Error)
+      err := fmt.Errorf("Cannot create user in updateUsersUC: %w", tx.Error)
+		  span.RecordError(err)
+			return nil, err
 		}
 	}
 	return user, nil
@@ -96,7 +104,9 @@ func DeleteUser(conn repository.Connection, parentCtx context.Context, uid int) 
 	})
 
 	if tx.Error != nil {
-		return fmt.Errorf("Cannot delete user %d in deleteUsersUC: %w", uid, tx.Error)
+    err := fmt.Errorf("Cannot delete user %d in deleteUsersUC: %w", uid, tx.Error)
+		span.RecordError(err)
+		return err
 	}
 	return nil
 }

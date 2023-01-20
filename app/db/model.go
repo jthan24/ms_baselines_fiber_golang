@@ -15,5 +15,5 @@ type Base struct {
 type User struct {
 	Base
 	Id   int    `yaml:"id"   json:"id"   gorm:"primaryKey"`
-	Name string `yaml:"name" json:"name"`
+	Name string `yaml:"name" json:"name" validate:"required,min=10,max=50"`
 }

@@ -12,6 +12,15 @@ tasks:
     cmds:
       - go mod download
 
+  go:generate:
+    desc: Generate wire code generation
+    cmds:
+      - go generate ./...
+    sources:
+      - ./wire.go
+    generates:
+      - ./wire_gen.go
+
   go:docs:
     desc: Generate the swagger docs
     cmds:
@@ -23,9 +32,9 @@ tasks:
 
   go:dev:
     desc: Start the local environment
-    deps: [go:docs, docker:dev]
+    deps: [go:generate, go:docs, docker:dev]
     cmds:
-      - godotenv -f .env go run .
+      - godotenv -f .env air -c .air.toml
 
   docker:dev:
     desc: Start the local environment
@@ -47,7 +56,8 @@ tasks:
     desc: Build the web app
     deps: [go:docs]
     cmds:
-      - CGO_ENABLED=0 go build -o {{.EXE}} .
+      - mkdir -p bin
+      - CGO_ENABLED=0 go build -o bin/{{.EXE}} .
     sources:
       - ./**/*.go
     generates:

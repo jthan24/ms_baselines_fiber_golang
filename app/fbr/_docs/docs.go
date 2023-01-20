@@ -35,7 +35,7 @@ const docTemplate = `{
                     }
                 }
             },
-            "put": {
+            "post": {
                 "produces": [
                     "application/json"
                 ],
@@ -85,7 +85,7 @@ const docTemplate = `{
                     }
                 }
             },
-            "post": {
+            "put": {
                 "produces": [
                     "application/json"
                 ],
@@ -145,12 +145,17 @@ const docTemplate = `{
     "definitions": {
         "db.User": {
             "type": "object",
+            "required": [
+                "name"
+            ],
             "properties": {
                 "id": {
                     "type": "integer"
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 10
                 }
             }
         }
